@@ -1,0 +1,38 @@
+{
+  "layers": [
+    "head.1.0",
+    "head.2.0",
+    "head.3.0"
+  ],
+  "concepts": [
+    "FAA",
+    "Theta",
+    "Alpha_Power",
+    "Beta_Power",
+    "TBR",
+    "Coherence"
+  ],
+  "n_cav_runs": 20,
+  "n_concepts": 50,
+  "model_path": "xceptiontime_mdd_v2_statedict.pt",
+  "cav_files": {
+    "FAA_head.1.0": "FAA_head_1_0.npz",
+    "Theta_head.1.0": "Theta_head_1_0.npz",
+    "Alpha_Power_head.1.0": "Alpha_Power_head_1_0.npz",
+    "Beta_Power_head.1.0": "Beta_Power_head_1_0.npz",
+    "TBR_head.1.0": "TBR_head_1_0.npz",
+    "Coherence_head.1.0": "Coherence_head_1_0.npz",
+    "FAA_head.2.0": "FAA_head_2_0.npz",
+    "Theta_head.2.0": "Theta_head_2_0.npz",
+    "Alpha_Power_head.2.0": "Alpha_Power_head_2_0.npz",
+    "Beta_Power_head.2.0": "Beta_Power_head_2_0.npz",
+    "TBR_head.2.0": "TBR_head_2_0.npz",
+    "Coherence_head.2.0": "Coherence_head_2_0.npz",
+    "FAA_head.3.0": "FAA_head_3_0.npz",
+    "Theta_head.3.0": "Theta_head_3_0.npz",
+    "Alpha_Power_head.3.0": "Alpha_Power_head_3_0.npz",
+    "Beta_Power_head.3.0": "Beta_Power_head_3_0.npz",
+    "TBR_head.3.0": "TBR_head_3_0.npz",
+    "Coherence_head.3.0": "Coherence_head_3_0.npz"
+  }
+}
