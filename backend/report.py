@@ -15,6 +15,7 @@ from config import GEMINI_API_KEY, GEMINI_MODEL_URL
 
 class ClinicalFlag(str, Enum):
     STRONG = "STRONG"
+    MODERATE = "MODERATE"
     WEAK = "WEAK"
     SUPPRESSOR = "SUPPRESSOR"
 
@@ -23,7 +24,8 @@ class ClinicalFlag(str, Enum):
 _FLAG_NORMALISATION: dict[str, ClinicalFlag] = {
     "STRONG": ClinicalFlag.STRONG,
     "STRONG_DRIVER": ClinicalFlag.STRONG,
-    "MODERATE_DRIVER": ClinicalFlag.WEAK,
+    "MODERATE_DRIVER": ClinicalFlag.MODERATE,
+    "MODERATE": ClinicalFlag.MODERATE,
     "NEUTRAL": ClinicalFlag.WEAK,
     "WEAK": ClinicalFlag.WEAK,
     "SUPPRESSOR": ClinicalFlag.SUPPRESSOR,
@@ -116,11 +118,16 @@ For the Biomarker Interpretation section:
 - Each biomarker has a clinical_flag in the input JSON. Use it as follows:
   - STRONG: The biomarker showed an abnormal pattern  describe the deviation from
     normative expectation and its neurophysiological significance.
+  - MODERATE: The biomarker showed a present but not dominant deviation  describe
+    the abnormality in calibrated language and state that the effect is secondary
+    or moderate rather than the primary biomarker signal.
   - SUPPRESSOR: The biomarker showed a healthy, normative pattern  describe the normal
     finding and confirm what preserved function it reflects. Do not describe this as
     "suppressed" or "reduced". Frame it as a positive neurophysiological observation.
   - WEAK: The biomarker was within expected limits with no meaningful deviation 
-    confirm normative status and state what intact function it reflects.
+    confirm normative status and state what intact function it reflects. If the TCAV
+    effect is very small or near-neutral, explicitly note that the biomarker did not
+    show a stable directional contribution in this recording.
 - For each biomarker, answer three questions in clinical prose:
   1. What is the established normative expectation for this measure in a healthy adult EEG?
   2. What was observed in this subject's recording?
@@ -851,7 +858,7 @@ OUTPUT REPORT:"""
 
 def _activity_descriptor(clinical_flag: ClinicalFlag, mean_dd: float) -> str:
     """Clinical activity descriptor  uses flag as primary signal, DD only for direction."""
-    if clinical_flag == ClinicalFlag.STRONG:
+    if clinical_flag in {ClinicalFlag.STRONG, ClinicalFlag.MODERATE}:
         return "elevated" if mean_dd >= 0 else "reduced"
     # Both SUPPRESSOR and WEAK are within normal limits
     return "within expected limits"
@@ -862,6 +869,21 @@ def _suppressor_context(raw_label: str) -> str:
     if raw_label == "MDD":
         return "preserved"
     return "intact"
+
+
+def _weak_effect_note(tcav: float) -> str:
+    """Calibrated wording for non-salient or near-neutral TCAV effects."""
+    if abs(tcav - 0.5) < 0.05:
+        return (
+            "The concept effect was near-neutral in this recording and did not show a "
+            "stable directional contribution."
+        )
+    if 0.35 <= tcav <= 0.65:
+        return (
+            "The concept effect was small in this recording and did not indicate a "
+            "reliably expressed directional abnormality."
+        )
+    return ""
 
 
 def _coherence_suppressor_note() -> str:
@@ -938,11 +960,19 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
         key=lambda c: abs(c["mean_dd"]),
         reverse=True,
     )
+    moderate = sorted(
+        [c for c in concepts if c["clinical_flag"] == ClinicalFlag.MODERATE],
+        key=lambda c: abs(c["mean_dd"]),
+        reverse=True,
+    )
     suppressors = [c for c in concepts if c["clinical_flag"] == ClinicalFlag.SUPPRESSOR]
     weak = [c for c in concepts if c["clinical_flag"] == ClinicalFlag.WEAK]
 
-    # Dominant domain  STRONG findings only; on HC, SUPPRESSORs are healthy signals
-    domain_sources = strong if strong else (suppressors if raw_label == "MDD" else [])
+    # Dominant domain  prioritise abnormal drivers; on HC, SUPPRESSORs are healthy signals
+    active_abnormal = strong + moderate
+    domain_sources = active_abnormal if active_abnormal else (
+        suppressors if raw_label == "MDD" else []
+    )
     family_scores: dict[str, float] = {
         "spectral power": 0.0, "spectral ratios": 0.0, "connectivity": 0.0
     }
@@ -1006,6 +1036,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     # --- Biomarker Interpretation ---
     ordered_concepts = (
         sorted(strong, key=lambda c: abs(c["mean_dd"]), reverse=True)
+        + moderate
         + suppressors
         + weak
     )
@@ -1017,6 +1048,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
         name = c["name"]
         flag = c["clinical_flag"]
         mean_dd = c["mean_dd"]
+        tcav = c["tcav"]
 
         if flag == ClinicalFlag.STRONG:
             # Coherence STRONG = elevated coherence = loss of connectivity selectivity = MDD
@@ -1069,6 +1101,55 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
                 biomarker_lines.append(
                     f"{desc}: In this recording, activity was {activity} relative to "
                     f"normative expectation. {note}."
+                )
+
+        elif flag == ClinicalFlag.MODERATE:
+            activity = _activity_descriptor(flag, mean_dd)
+            if name == "Coherence":
+                biomarker_lines.append(
+                    f"{desc}: Interhemispheric alpha coherence showed a moderate "
+                    f"elevation relative to normative expectation, suggesting a partial "
+                    f"loss of functional connectivity selectivity rather than a dominant "
+                    f"network-level abnormality. Elevated coherence is the MDD-associated "
+                    f"pattern described by Leuchter et al. (2012), but the effect size "
+                    f"here was secondary rather than primary."
+                )
+            elif name == "TBR":
+                biomarker_lines.append(
+                    f"{desc}: In this recording, the theta/beta ratio was {activity} "
+                    f"relative to normative expectation, indicating a moderate reduction "
+                    f"in frontal arousal efficiency. {note}. This finding should be "
+                    f"interpreted cautiously because TBR is a general cortical arousal "
+                    f"construct and has not been established as a specific MDD biomarker."
+                )
+            elif name == "FAA":
+                biomarker_lines.append(
+                    f"{desc}: In this recording, activity was {activity} relative to "
+                    f"normative expectation, indicating a moderate hemispheric imbalance "
+                    f"in frontal alpha organisation. {note}. FAA carries limited "
+                    f"standalone diagnostic specificity and should be weighted as a "
+                    f"secondary biomarker signal."
+                )
+            elif name == "Beta_Power":
+                biomarker_lines.append(
+                    f"{desc}: In this recording, activity was {activity} relative to "
+                    f"normative expectation, indicating a moderate degree of frontal-central "
+                    f"cortical hyperactivation. {note}. Elevated beta is most commonly "
+                    f"contextualised alongside anxiety symptoms rather than interpreted as "
+                    f"a depression-specific abnormality."
+                )
+            elif name == "Alpha_Power":
+                biomarker_lines.append(
+                    f"{desc}: In this recording, activity was {activity} relative to "
+                    f"normative expectation, indicating a moderate reduction in posterior "
+                    f"cortical inhibitory efficiency. {note}."
+                )
+            else:
+                biomarker_lines.append(
+                    f"{desc}: In this recording, activity was {activity} relative to "
+                    f"normative expectation. The magnitude of deviation was moderate and "
+                    f"did not represent the dominant biomarker abnormality in this profile. "
+                    f"{note}."
                 )
 
         elif flag == ClinicalFlag.SUPPRESSOR:
@@ -1126,20 +1207,22 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
 
         else:
             # WEAK
+            weak_effect_note = _weak_effect_note(tcav)
             if name == "FAA":
                 biomarker_lines.append(
                     f"{desc}: Frontal alpha asymmetry was within the expected normative "
                     f"range in this recording. No significant hemispheric imbalance in "
                     f"frontal inhibitory activity was identified. FAA carries limited "
                     f"standalone diagnostic weight given its heterogeneous meta-analytic "
-                    f"evidence base as an MDD discriminator."
+                    f"evidence base as an MDD discriminator. {weak_effect_note}".strip()
                 )
             elif name == "TBR":
                 biomarker_lines.append(
                     f"{desc}: The theta/beta ratio was within expected limits in this "
                     f"recording, indicating no significant frontal arousal imbalance. "
                     f"TBR is a general cortical arousal construct not specific to MDD "
-                    f"and does not represent a clinically significant deviation here."
+                    f"and does not represent a clinically significant deviation here. "
+                    f"{weak_effect_note}".strip()
                 )
             elif name == "Coherence":
                 biomarker_lines.append(
@@ -1147,14 +1230,16 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
                     f"normative range in this recording, indicating preserved functional "
                     f"connectivity selectivity. The MDD-associated pattern is elevated "
                     f"coherence (Leuchter et al. 2012); normative values confirm intact "
-                    f"bilateral cortical coordination in this subject."
+                    f"bilateral cortical coordination in this subject. "
+                    f"{weak_effect_note}".strip()
                 )
             else:
                 biomarker_lines.append(
                     f"{desc}: Values for this measure were within the expected normative "
                     f"range in this recording. This indicates that "
                     f"{note.rstrip('.').lower() if note else desc.lower()} "
-                    f"does not represent a clinically significant deviation in this subject."
+                    f"does not represent a clinically significant deviation in this subject. "
+                    f"{weak_effect_note}".strip()
                 )
 
     concept_summary = (
@@ -1169,15 +1254,15 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     coh = next((c for c in concepts if c["name"] == "Coherence"), None)
 
     pattern_note = ""
-    if theta and theta["clinical_flag"] == ClinicalFlag.STRONG:
-        if not faa or faa["clinical_flag"] != ClinicalFlag.STRONG:
+    if theta and theta["clinical_flag"] in {ClinicalFlag.STRONG, ClinicalFlag.MODERATE}:
+        if not faa or faa["clinical_flag"] not in {ClinicalFlag.STRONG, ClinicalFlag.MODERATE}:
             pattern_note += (
                 " The absence of concurrent frontal asymmetry suggests a non-lateralised "
                 "prefrontal regulatory disturbance rather than a hemispheric imbalance pattern."
             )
     # CORRECTION: Coherence SUPPRESSOR means normative coherence = healthy.
     # Do NOT add a note about "reduced coherence indicating impaired communication."
-    if coh and coh["clinical_flag"] == ClinicalFlag.STRONG:
+    if coh and coh["clinical_flag"] in {ClinicalFlag.STRONG, ClinicalFlag.MODERATE}:
         # Elevated coherence = loss of connectivity selectivity = notable finding
         pattern_note += (
             " Elevated interhemispheric alpha coherence reflects a loss of functional "
@@ -1185,20 +1270,20 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
         )
 
     # --- Clinical Interpretation ---
-    if strong:
-        strong_names = [c["description"] or c["name"] for c in strong]
-        if len(strong_names) == 1:
+    if active_abnormal:
+        active_names = [c["description"] or c["name"] for c in active_abnormal]
+        if len(active_names) == 1:
             dominant_text = (
                 f"The neurophysiological profile of this subject is characterised by a focal "
-                f"{dominant_family} abnormality, with {strong_names[0]} representing the primary "
+                f"{dominant_family} abnormality, with {active_names[0]} representing the primary "
                 f"deviation from normative expectation."
             )
         else:
-            listed = ", ".join(strong_names[:-1]) + f" and {strong_names[-1]}"
+            listed = ", ".join(active_names[:-1]) + f" and {active_names[-1]}"
             dominant_text = (
                 f"The neurophysiological profile of this subject is characterised by "
                 f"{dominant_family} dysregulation, with {listed} each showing a clinically "
-                f"significant deviation from normative expectation."
+                f"meaningful deviation from normative expectation."
             )
     elif raw_label == "MDD" and suppressors:
         sup_names = [c["description"] or c["name"] for c in suppressors]
@@ -1221,7 +1306,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     # Dissociation note
     dissociation_text = ""
     intact_concepts = suppressors + weak
-    if strong and intact_concepts:
+    if active_abnormal and intact_concepts:
         intact_names = [c["description"] or c["name"] for c in intact_concepts]
         intact_listed = (
             intact_names[0] if len(intact_names) == 1
@@ -1248,7 +1333,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     # Evidence-weight note for TBR
     tbr_obj = next((c for c in concepts if c["name"] == "TBR"), None)
     tbr_note = ""
-    if tbr_obj and tbr_obj["clinical_flag"] == ClinicalFlag.STRONG:
+    if tbr_obj and tbr_obj["clinical_flag"] in {ClinicalFlag.STRONG, ClinicalFlag.MODERATE}:
         tbr_note = (
             " The theta/beta ratio, while elevated, is a general arousal construct "
             "derived from the ADHD literature and has not been established as a specific "
@@ -1270,10 +1355,17 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     )
 
     strong_count = len(strong)
+    moderate_count = len(moderate)
     suppressor_count = len(suppressors)
-    active_count = strong_count + suppressor_count
+    active_count = strong_count + moderate_count + suppressor_count
 
     if strong_count >= 2 and suppressor_count == 0:
+        overall_reliability = "High"
+        clinical_reliance = (
+            "Findings are suitable as a primary decision-support signal, "
+            "subject to clinical correlation."
+        )
+    elif strong_count == 1 and moderate_count >= 1 and confidence_pct >= 90 and mean_cav >= 80:
         overall_reliability = "High"
         clinical_reliance = (
             "Findings are suitable as a primary decision-support signal, "
