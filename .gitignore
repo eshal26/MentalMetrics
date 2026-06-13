@@ -1,6 +1,7 @@
 # Secrets
 .env
 .env.*
+.env1
 
 # Python
 __pycache__/
@@ -23,6 +24,7 @@ backend/*.pdf
 backend/*.png
 backend/*.csv
 backend/*.json
+backend/.myenv
 
 # Frontend
 frontend/node_modules/
@@ -43,3 +45,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 backend/eeg_preprocessed.npz
+# Virtual environments
+env1/
+.env1/
+backend/.myenv/
+backend/myenv/
