@@ -108,6 +108,7 @@ def run_subject_pipeline(edf_path: str, subject_id: str):
     Generator that yields (progress_pct, log_message) tuples,
     then finally yields (100, result_dict).
     """
+<<<<<<< HEAD
     yield 5, "Preparing analysis…"
     validate_model_artifacts()
 
@@ -118,6 +119,18 @@ def run_subject_pipeline(edf_path: str, subject_id: str):
         yield 18, "Preparing concept reference data…"
 
     yield 25, "Running clinical EEG analysis…"
+=======
+    yield 12, "Checking model and concept files."
+    validate_model_artifacts()
+
+    yield 18, "Model files loaded."
+    if os.path.isdir(EXPLAIN_CAV_BANK_DIR):
+        yield 25, "Reference concept library loaded."
+    else:
+        yield 25, "Preparing concept reference data."
+
+    yield 35, "Running EEG segmentation, prediction, and concept analysis."
+>>>>>>> master
 
     from explain_subject import explain_subject
 
@@ -129,6 +142,10 @@ def run_subject_pipeline(edf_path: str, subject_id: str):
         cav_bank_dir=EXPLAIN_CAV_BANK_DIR,
     )
 
+<<<<<<< HEAD
     yield 88, "Preparing clinical summary…"
+=======
+    yield 88, "Preparing structured analysis results."
+>>>>>>> master
     result = _build_result(subject_id, explanation)
     yield 100, result

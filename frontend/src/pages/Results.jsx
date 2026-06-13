@@ -1,18 +1,7 @@
 import { useState } from "react";
-import {
-  Line,
-  LineChart,
-  ReferenceArea,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import ConceptBar from "../components/ConceptBar";
 import GlossaryModal from "../components/GlossaryModal";
 import PredictionBadge from "../components/PredictionBadge";
-import { COLORS } from "../utils/constants";
 
 const API_BASE = "http://localhost:8000/api";
 
@@ -201,11 +190,6 @@ const SECTION_ICONS = {
       <path d="M10 9v2M10 13h.01" strokeLinecap="round" />
     </svg>
   ),
-  "Confidence & Reliability Assessment": (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M10 3l1.8 5.4H17l-4.6 3.3 1.8 5.4L10 14l-4.2 3.1 1.8-5.4L3 8.4h5.2z" strokeLinejoin="round" />
-    </svg>
-  ),
   "Safety Disclaimer": (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M10 2l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V5l7-3z" strokeLinejoin="round" />
@@ -232,13 +216,6 @@ function CollapsibleSection({ title, open, onToggle, children }) {
 /* ─────────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────────── */
-function buildTimelineData(probabilities) {
-  return probabilities.map((probability, index) => ({
-    time: index * 5,
-    probability,
-  }));
-}
-
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -330,7 +307,6 @@ function formatReportSections(analysis) {
       { title: "Clinical Summary", key: "model_prediction_summary", content: analysis.reportSections.model_prediction_summary },
       { title: "Biomarker Interpretation", key: "concept_based_explanation", content: analysis.reportSections.concept_based_explanation },
       { title: "Clinical Interpretation", key: "clinical_interpretation", content: mergedClinicalInterpretation },
-      { title: "Confidence & Reliability Assessment", key: "confidence_reliability_assessment", content: analysis.reportSections.confidence_reliability_assessment },
       { title: "Safety Disclaimer", key: "safety_disclaimer", content: analysis.reportSections.safety_disclaimer },
     ];
     const hasContent = structured.some((s) => s.content?.trim());
@@ -348,7 +324,12 @@ function formatReportSections(analysis) {
 /* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
-export default function Results({ analysis }) {
+function formatPercent(value) {
+  const numeric = Number(value || 0);
+  return `${(numeric * 100).toFixed(1)}%`;
+}
+
+export default function Results({ analysis, authToken }) {
   const [openSections, setOpenSections] = useState({
     summary: true,
     report: false,
@@ -361,7 +342,6 @@ export default function Results({ analysis }) {
     return <div className="card empty-state">No results are loaded yet.</div>;
   }
 
-  const timelineData = buildTimelineData(analysis.segmentProbabilities);
   const reportSections = formatReportSections(analysis);
 
   const handleCopy = () => {
@@ -373,7 +353,8 @@ export default function Results({ analysis }) {
 
   const handleDownloadPdf = () => {
     if (analysis.jobId) {
-      window.open(`${API_BASE}/pdf/${analysis.jobId}`, "_blank", "noopener,noreferrer");
+      const tokenQuery = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
+      window.open(`${API_BASE}/pdf/${analysis.jobId}${tokenQuery}`, "_blank", "noopener,noreferrer");
       return;
     }
 
@@ -403,25 +384,10 @@ export default function Results({ analysis }) {
           <div className="prediction-summary-grid">
             <PredictionBadge label={analysis.prediction} confidence={analysis.confidence} large />
             <div className="stat-strip">
-              <StatCard label="Depressed probability" value={analysis.mddProb.toFixed(2)} />
-              <StatCard label="Healthy probability" value={analysis.hcProb.toFixed(2)} />
+              <StatCard label="Depressed probability" value={formatPercent(analysis.mddProb)} />
+              <StatCard label="Healthy probability" value={formatPercent(analysis.hcProb)} />
               <StatCard label="Recording duration" value={`${analysis.recordingSeconds}s`} />
             </div>
-          </div>
-
-          <div className="chart-card">
-            <div className="chart-title">Depressed-profile probability over time</div>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={timelineData} margin={{ top: 12, right: 12, left: 0, bottom: 12 }}>
-                <ReferenceArea y1={0.5} y2={1} fill="rgba(163, 45, 45, 0.08)" />
-                <ReferenceArea y1={0} y2={0.5} fill="rgba(59, 109, 17, 0.08)" />
-                <XAxis dataKey="time" tickLine={false} axisLine={false} />
-                <YAxis domain={[0, 1]} tickLine={false} axisLine={false} />
-                <Tooltip />
-                <ReferenceLine y={0.5} stroke={COLORS.neutral} strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="probability" stroke={COLORS.primary} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
           </div>
         </CollapsibleSection>
 

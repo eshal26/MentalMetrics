@@ -16,6 +16,17 @@ app.add_middleware(
 app.include_router(router)
 
 
+<<<<<<< HEAD
+=======
+@app.get("/")
+def root() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "message": "MentalMetrics API is running. Use /api/health and /api/... endpoints.",
+    }
+
+
+>>>>>>> master
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()

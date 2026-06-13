@@ -1,4 +1,4 @@
-import PredictionBadge from "../components/PredictionBadge";
+import { getPredictionPhrase } from "../components/PredictionBadge";
 
 function formatDate(value) {
   return new Date(value).toLocaleString();
@@ -38,8 +38,7 @@ export default function Dashboard({ sessions, onStartNew, onViewSession, onDelet
                 <tr>
                   <th>Subject name</th>
                   <th>Date</th>
-                  <th>Prediction</th>
-                  <th>Confidence</th>
+                  <th>Result</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -48,10 +47,7 @@ export default function Dashboard({ sessions, onStartNew, onViewSession, onDelet
                   <tr key={session.id}>
                     <td>{session.subject}</td>
                     <td>{formatDate(session.createdAt)}</td>
-                    <td>
-                      <PredictionBadge label={session.prediction} confidence={session.confidence} />
-                    </td>
-                    <td>{session.confidence.toFixed(1)}%</td>
+                    <td>{getPredictionPhrase(session.prediction, session.confidence)}</td>
                     <td className="action-cell">
                       <button type="button" className="secondary-button" onClick={() => onViewSession(session.id)}>
                         View

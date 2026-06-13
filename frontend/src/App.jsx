@@ -2,15 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Dashboard from "./pages/Dashboard";
 import Glossary from "./pages/Glossary";
 import History from "./pages/History";
+import Login from "./pages/Login";
 import Results from "./pages/Results";
 import Upload from "./pages/Upload";
 import GlossaryModal from "./components/GlossaryModal";
 import { APP_PAGES, getConceptInterpretation, getConceptMeta, resolveConceptKey } from "./utils/constants";
 import {
   clearSessions,
+  clearAuth,
   deleteSession,
+  loadAuth,
   loadSessions,
   loadTheme,
+  saveAuth,
   saveTheme,
   upsertSession,
 } from "./utils/storage";
@@ -23,7 +27,14 @@ const PAGE_TITLES = {
   glossary: "Glossary",
 };
 
-const STAGE_LABELS = ["Preparing", "Reviewing", "Summarizing", "Finalizing"];
+const STAGE_LABELS = [
+  "Upload saved",
+  "Model loaded",
+  "EEG segmented",
+  "Prediction complete",
+  "Concepts computed",
+  "Report generated",
+];
 
 function createInitialStages() {
   return STAGE_LABELS.map((label, index) => ({
@@ -40,6 +51,8 @@ function createInitialRunState() {
     loading: false,
     error: "",
     progress: 0,
+    jobId: null,
+    currentMessage: "",
     stages: createInitialStages(),
   };
 }
@@ -54,17 +67,29 @@ function buildApiBase(baseUrl) {
   return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
 }
 
+const API_BASE = buildApiBase("http://localhost:8000");
+
+function authHeaders(auth) {
+  return auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {};
+}
+
 function getStageIndex(progress) {
-  if (progress < 25) {
+  if (progress < 12) {
     return 0;
   }
-  if (progress < 55) {
+  if (progress < 25) {
     return 1;
   }
-  if (progress < 85) {
+  if (progress < 55) {
     return 2;
   }
-  return 3;
+  if (progress < 88) {
+    return 3;
+  }
+  if (progress < 100) {
+    return 4;
+  }
+  return 5;
 }
 
 function parseReportSections(report) {
@@ -112,7 +137,6 @@ function formatReportText(reportSections) {
     `Clinical Summary\n${reportSections.model_prediction_summary}`,
     `Biomarker Interpretation\n${reportSections.concept_based_explanation}`,
     `Clinical Interpretation\n${reportSections.clinical_interpretation}`,
-    `Confidence & Reliability Assessment\n${reportSections.confidence_reliability_assessment}`,
     `Safety Disclaimer\n${reportSections.safety_disclaimer}`,
     reportSections.raw_report_text ? `Raw Report Text\n${reportSections.raw_report_text}` : "",
   ].join("\n\n");
@@ -128,7 +152,6 @@ function normalizeConcepts(result, predictionLabel) {
       tcavScore: Number(concept.tcav_score || 0),
       meanDd: Number(concept.mean_derivative || concept.mean_dd || 0),
       stdDd: Number(concept.std_dd || concept.tcav_std || 0),
-      cavAccuracy: normalizeConfidence(concept.cav_accuracy || 0),
       clinicalFlag: concept.clinical_flag || "WEAK",
       segmentDd: concept.segment_dd || [],
       predictionLabel,
@@ -144,7 +167,6 @@ function normalizeConcepts(result, predictionLabel) {
         tcavScore: Number(source.tcav_score || 0),
         meanDd: Number(source.mean_dd || 0),
         stdDd: Number(source.std_dd || 0),
-        cavAccuracy: normalizeConfidence(source.cav_accuracy || 0),
         clinicalFlag: source.clinical_flag || "WEAK",
         segmentDd: Array.isArray(source.segment_dd) ? source.segment_dd : [],
         predictionLabel,
@@ -157,7 +179,6 @@ function normalizeConcepts(result, predictionLabel) {
     tcavScore: Number(concept.tcav_score || 0),
     meanDd: Number(concept.mean_derivative || concept.mean_dd || 0),
     stdDd: Number(concept.std_dd || concept.tcav_std || 0),
-    cavAccuracy: normalizeConfidence(concept.cav_accuracy || 0),
     clinicalFlag: concept.clinical_flag || "WEAK",
     segmentDd: Array.isArray(concept.segment_dd) ? concept.segment_dd : [],
     predictionLabel,
@@ -199,6 +220,23 @@ function normalizeAnalysis(result, report, subjectFallback, jobId = null) {
   };
 }
 
+function normalizeHistoryItem(item) {
+  if (!item.result) {
+    return null;
+  }
+  const normalized = normalizeAnalysis(
+    item.result,
+    item.report,
+    item.subject_id,
+    item.job_id,
+  );
+  return {
+    ...normalized,
+    id: item.job_id,
+    createdAt: item.completed_at || item.created_at || normalized.createdAt,
+  };
+}
+
 function updateStageStates(previousStages, progress) {
   const now = Date.now();
   const activeIndex = getStageIndex(progress);
@@ -226,6 +264,9 @@ function updateStageStates(previousStages, progress) {
 
 export default function App() {
   const [route, setRoute] = useState(getRouteFromHash());
+  const [auth, setAuth] = useState(loadAuth());
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [theme, setTheme] = useState(loadTheme());
   const [sessions, setSessions] = useState(loadSessions());
   const [currentAnalysis, setCurrentAnalysis] = useState(null);
@@ -239,6 +280,49 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     saveTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!auth?.accessToken) {
+      setSessions([]);
+      setCurrentAnalysis(null);
+      return;
+    }
+
+    let active = true;
+    async function loadUserHistory() {
+      try {
+        const response = await fetch(`${API_BASE}/history`, {
+          headers: authHeaders(auth),
+        });
+        if (response.status === 401) {
+          handleLogout();
+          return;
+        }
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Could not load history");
+        }
+        const nextSessions = data.analyses
+          .map(normalizeHistoryItem)
+          .filter(Boolean);
+        if (active) {
+          setSessions(nextSessions);
+          if (route === "results" && nextSessions.length > 0) {
+            setCurrentAnalysis(nextSessions[0]);
+          }
+        }
+      } catch (error) {
+        if (active) {
+          setAuthError(error.message);
+        }
+      }
+    }
+
+    loadUserHistory();
+    return () => {
+      active = false;
+    };
+  }, [auth?.accessToken]);
 
   useEffect(() => {
     const onHashChange = () => setRoute(getRouteFromHash());
@@ -266,7 +350,7 @@ export default function App() {
 
     async function ping() {
       try {
-        const response = await fetch(`${buildApiBase("http://localhost:8000")}/health`);
+        const response = await fetch(`${API_BASE}/health`);
         const data = await response.json();
         if (active) {
           setHealthStatus(data.status === "ok" ? "online" : "offline");
@@ -289,6 +373,46 @@ export default function App() {
   const navigate = useCallback((nextRoute) => {
     window.location.hash = nextRoute;
     setRoute(nextRoute);
+  }, []);
+
+  const handleAuthSubmit = useCallback(async ({ email, password, mode }) => {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const response = await fetch(`${API_BASE}/auth/${mode === "register" ? "register" : "login"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Authentication failed");
+      }
+      const nextAuth = {
+        accessToken: data.access_token,
+        user: data.user,
+      };
+      saveAuth(nextAuth);
+      setAuth(nextAuth);
+      navigate("dashboard");
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
+    }
+    clearAuth();
+    setAuth(null);
+    setSessions([]);
+    setCurrentAnalysis(null);
+    setRunState(createInitialRunState());
+    setAuthError("");
   }, []);
 
   const handleThemeToggle = useCallback(() => {
@@ -331,18 +455,19 @@ export default function App() {
       ...prev,
       loading: true,
       progress: 1,
+      currentMessage: "Saving upload.",
       stages: updateStageStates(createInitialStages(), 1),
     }));
     navigate("upload");
 
-    const apiBase = buildApiBase("http://localhost:8000");
     const form = new FormData();
     form.append("file", file);
     form.append("subject_id", subjectName);
 
     try {
-      const response = await fetch(`${apiBase}/analyze`, {
+      const response = await fetch(`${API_BASE}/analyze`, {
         method: "POST",
+        headers: authHeaders(auth),
         body: form,
       });
       const data = await response.json();
@@ -352,7 +477,11 @@ export default function App() {
       }
 
       if (data.job_id) {
-        const stream = new EventSource(`${apiBase}/stream/${data.job_id}`);
+        setRunState((prev) => ({
+          ...prev,
+          jobId: data.job_id,
+        }));
+        const stream = new EventSource(`${API_BASE}/stream/${data.job_id}?token=${encodeURIComponent(auth.accessToken)}`);
         streamRef.current = stream;
 
         stream.onmessage = (event) => {
@@ -364,13 +493,29 @@ export default function App() {
             const saved = upsertSession(normalized);
             setSessions(saved);
             setCurrentAnalysis(normalized);
-          setRunState({
-            loading: false,
-            error: "",
-            progress: 100,
-            stages: updateStageStates(createInitialStages(), 100),
-          });
+            setRunState({
+              loading: false,
+              error: "",
+              progress: 100,
+              jobId: null,
+              currentMessage: "Report generated successfully.",
+              stages: updateStageStates(createInitialStages(), 100),
+            });
             navigate("results");
+            return;
+          }
+
+          if (payload.message === "canceled") {
+            stream.close();
+            streamRef.current = null;
+            setRunState((prev) => ({
+              ...prev,
+              loading: false,
+              error: "Analysis canceled.",
+              progress: payload.progress || prev.progress,
+              jobId: null,
+              currentMessage: "Analysis canceled.",
+            }));
             return;
           }
 
@@ -381,6 +526,8 @@ export default function App() {
               ...prev,
               loading: false,
               error: payload.message,
+              jobId: null,
+              currentMessage: payload.message,
             }));
             return;
           }
@@ -388,6 +535,7 @@ export default function App() {
           setRunState((prev) => ({
             ...prev,
             progress: payload.progress || prev.progress,
+            currentMessage: payload.message || prev.currentMessage,
             stages: updateStageStates(prev.stages, payload.progress || 0),
           }));
         };
@@ -399,6 +547,8 @@ export default function App() {
             ...prev,
             loading: false,
             error: "Connection lost while streaming analysis progress.",
+            jobId: null,
+            currentMessage: "Connection lost while streaming analysis progress.",
           }));
         };
         return;
@@ -412,6 +562,8 @@ export default function App() {
         loading: false,
         error: "",
         progress: 100,
+        jobId: null,
+        currentMessage: "Report generated successfully.",
         stages: updateStageStates(createInitialStages(), 100),
       });
       navigate("results");
@@ -420,9 +572,50 @@ export default function App() {
         ...prev,
         loading: false,
         error: error.message,
+        jobId: null,
+        currentMessage: error.message,
       }));
     }
-  }, [handleResetRun, navigate]);
+  }, [auth, handleResetRun, navigate]);
+
+  const handleCancelAnalysis = useCallback(async () => {
+    const jobId = runState.jobId;
+    if (!jobId) {
+      handleResetRun();
+      return;
+    }
+
+    try {
+      await fetch(`${API_BASE}/cancel/${jobId}`, {
+        method: "POST",
+        headers: authHeaders(auth),
+      });
+    } catch (error) {
+      // The stream may still report cancellation; keep the UI responsive either way.
+    }
+
+    if (streamRef.current) {
+      streamRef.current.close();
+      streamRef.current = null;
+    }
+    setRunState((prev) => ({
+      ...prev,
+      loading: false,
+      error: "Analysis canceled.",
+      jobId: null,
+      currentMessage: "Analysis canceled.",
+    }));
+  }, [auth, handleResetRun, runState.jobId]);
+
+  if (!auth?.accessToken) {
+    return (
+      <Login
+        onSubmit={handleAuthSubmit}
+        error={authError}
+        loading={authLoading}
+      />
+    );
+  }
 
   const renderPage = () => {
     if (route === "dashboard") {
@@ -441,11 +634,12 @@ export default function App() {
           onAnalyze={handleStartAnalysis}
           runState={runState}
           onRetry={handleResetRun}
+          onCancel={handleCancelAnalysis}
         />
       );
     }
     if (route === "results") {
-      return <Results analysis={currentAnalysis} />;
+      return <Results analysis={currentAnalysis} authToken={auth.accessToken} />;
     }
     if (route === "history") {
       return (
@@ -507,6 +701,9 @@ export default function App() {
           <div className="topbar-actions">
             <button type="button" className="secondary-button" onClick={handleThemeToggle}>
               {theme === "dark" ? "Light mode" : "Dark mode"}
+            </button>
+            <button type="button" className="ghost-button" onClick={handleLogout}>
+              Logout
             </button>
             <div className={`status-indicator ${healthStatus}`}>
               <span className="status-dot" />

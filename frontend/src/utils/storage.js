@@ -1,5 +1,23 @@
 const SESSION_KEY = "neuroXplain_sessions";
 const THEME_KEY = "neuroXplain_theme";
+const AUTH_KEY = "neuroXplain_auth";
+
+export function loadAuth() {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+export function saveAuth(auth) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+}
+
+export function clearAuth() {
+  localStorage.removeItem(AUTH_KEY);
+}
 
 export function loadSessions() {
   try {

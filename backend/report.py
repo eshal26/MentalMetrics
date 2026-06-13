@@ -41,7 +41,10 @@ REPORT_SECTIONS = [
     ("model_prediction_summary", "Clinical Summary"),
     ("concept_based_explanation", "Biomarker Interpretation"),
     ("clinical_interpretation", "Clinical Interpretation"),
+<<<<<<< HEAD
     ("confidence_reliability_assessment", "Confidence & Reliability Assessment"),
+=======
+>>>>>>> master
     ("safety_disclaimer", "Safety Disclaimer"),
 ]
 
@@ -64,8 +67,12 @@ Clinical writing conventions:
 - Do not use first or second person. Do not refer to the AI system.
 - Refer to the subject as "the subject" or "this recording"  not "the patient"
   (EEG-only context, no clinical contact).
+<<<<<<< HEAD
 - Numbers: probabilities to two decimal places; durations in whole seconds;
   percentages with one decimal place.
+=======
+- Numbers: durations in whole seconds; percentages with one decimal place when clinically necessary.
+>>>>>>> master
 - Spell out all abbreviations on first use within each section.
 
 Evidence-calibration conventions (mandatory):
@@ -97,17 +104,30 @@ For the Patient & Recording Information section:
 
 CLINICAL_SUMMARY_INSTRUCTION = """
 For the Clinical Summary section:
+<<<<<<< HEAD
 1. Open with the clinical impression: classification label, confidence percentage, and
    confidence band (High/Moderate/Low). Do not reference whether the biomarker profile
    supports or qualifies the classification  that framing belongs to interpretation, not summary.
+=======
+1. Open with the clinical impression using the classification label only (e.g. "Depressed" or "Healthy").
+   Do not include confidence percentages, probability values, confidence bands, likelihood phrases,
+   or reliability language.
+>>>>>>> master
 2. Describe temporal stability in plain language.
    - If std < 0.10, use exactly this phrasing: "The classification remained stable across
      the full recording duration." Do not add adverbial qualifiers such as "highly", "very",
      or "remarkably".
+<<<<<<< HEAD
    - If std >= 0.12, state the observed range in plain language.
    - Do NOT list mean/std/min/max as a series of raw numbers  summarise in words.
 3. Close with one sentence on what the confidence level implies for clinical reliance.
 Do not exceed four sentences total. Do not introduce biomarker findings here.
+=======
+   - If std >= 0.12, state that the classification showed variability across the recording
+     without citing numeric probability ranges.
+   - Do NOT list mean/std/min/max as a series of raw numbers  summarise in words.
+Do not exceed two sentences total. Do not introduce biomarker findings here.
+>>>>>>> master
 """
 
 BIOMARKER_INSTRUCTION = """
@@ -253,6 +273,7 @@ For the Clinical Interpretation section:
   constitute a standalone diagnosis.
 """
 
+<<<<<<< HEAD
 RELIABILITY_INSTRUCTION = """
 For the Confidence & Reliability Assessment section, write three short paragraphs:
 1. Model confidence: confidence score, confidence band, and whether temporal consistency
@@ -277,6 +298,8 @@ For the Confidence & Reliability Assessment section, write three short paragraph
      this report."
 """
 
+=======
+>>>>>>> master
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -394,6 +417,7 @@ def _build_prompt(analysis_result: dict) -> str:
         float(v)
         for v in analysis_result.get("raw_explanation", {}).get("segment_mdd_probs", [])
     ]
+<<<<<<< HEAD
     mdd_prob = float(analysis_result["prediction"]["probabilities"][1]) / 100.0
     hc_prob = float(analysis_result["prediction"]["probabilities"][0]) / 100.0
     confidence_pct = float(analysis_result["prediction"]["confidence"])
@@ -401,6 +425,12 @@ def _build_prompt(analysis_result: dict) -> str:
     display_label = analysis_result["prediction"].get("label", "Healthy")
 
     mean_prob, std_prob, min_prob, max_prob = _segment_summary(probabilities)
+=======
+    raw_label = analysis_result["prediction"].get("raw_label", "HC")
+    display_label = analysis_result["prediction"].get("label", "Healthy")
+
+    _, std_prob, _, _ = _segment_summary(probabilities)
+>>>>>>> master
 
     subject_data = {
         "subject_id": analysis_result["subject_id"],
@@ -409,6 +439,7 @@ def _build_prompt(analysis_result: dict) -> str:
         "prediction": {
             "label": display_label,
             "raw_label": raw_label,
+<<<<<<< HEAD
             "confidence_percent": confidence_pct,
             "confidence_band": _confidence_band(confidence_pct),
             "depressed_probability": round(mdd_prob, 2),
@@ -418,6 +449,10 @@ def _build_prompt(analysis_result: dict) -> str:
             "probability_std": round(std_prob, 3) if std_prob else 0.0,
             "probability_min": round(min_prob, 3) if min_prob is not None else None,
             "probability_max": round(max_prob, 3) if max_prob is not None else None,
+=======
+            "temporal_consistency": _temporal_consistency(probabilities),
+            "probability_std": round(std_prob, 3) if std_prob else 0.0,
+>>>>>>> master
         },
         **_concept_prompt_payload(analysis_result),
     }
@@ -503,7 +538,11 @@ def _build_prompt(analysis_result: dict) -> str:
 Subject ID: EXAMPLE_001. Recording duration: 300 seconds. Data source: example_recording.edf.
 
 Clinical Summary
+<<<<<<< HEAD
 EEG analysis yielded a classification of Depressed with 84.2% confidence (moderate confidence). The classification remained stable across the full recording duration. At this confidence level, findings are appropriate as supplementary decision-support information pending clinical correlation.
+=======
+EEG analysis yielded a classification of Depressed. The classification remained stable across the full recording duration.
+>>>>>>> master
 
 Biomarker Interpretation
 Frontal theta power (48 Hz; electrodes Fz, F3, F4): In a neurologically healthy adult, frontal theta power is typically low at rest, reflecting a state of alert, regulated cortical activity with effective prefrontal inhibitory tone. In this subject, frontal theta power was markedly elevated, indicating sustained prefrontal engagement associated with ruminative ideation, impaired cognitive inhibition, and reduced top-down regulatory efficiency. This finding is clinically notable: prefrontal theta cordance is an established predictor of antidepressant treatment response, and elevated baseline theta may have prognostic relevance for treatment selection.
@@ -519,6 +558,7 @@ Among the assessed biomarkers, frontal theta carries the strongest neurophysiolo
 
 EEG findings reflect the subject's neurophysiological state at the time of recording. These observations require integration with clinical history, current symptom presentation, and professional evaluation, and do not constitute a standalone diagnosis.
 
+<<<<<<< HEAD
 Confidence & Reliability Assessment
 Prediction confidence was 84.2% (moderate confidence), and classification probability showed minor fluctuation across recording segments, which is consistent with this confidence level.
 
@@ -526,6 +566,8 @@ Frontal theta power showed well-established concept separation in this recording
 
 Findings are suitable as supplementary decision-support information. Clinical interview and symptom assessment are recommended before clinical action is taken on the basis of this report.
 
+=======
+>>>>>>> master
 Safety Disclaimer
 {SAFETY_DISCLAIMER}"""
 
@@ -608,7 +650,11 @@ Safety Disclaimer
 Subject ID: EXAMPLE_002. Recording duration: 295 seconds. Data source: example_suppressor.edf.
 
 Clinical Summary
+<<<<<<< HEAD
 EEG analysis yielded a classification of Depressed with 97.6% confidence (high confidence). The classification remained stable across the full recording duration. At this confidence level, findings are suitable as a primary decision-support signal, subject to clinical correlation.
+=======
+EEG analysis yielded a classification of Depressed. The classification remained stable across the full recording duration.
+>>>>>>> master
 
 Biomarker Interpretation
 Interhemispheric alpha coherence (F3F4, P3P4, T3T4; 812 Hz): Research in unmedicated MDD subjects has identified elevated alpha coherence  characterised as a loss of functional connectivity selectivity  as the primary resting-state coherence deviation in depression, with prefrontal regions serving as primary network hubs (Leuchter et al. 2012). In this subject, interhemispheric alpha coherence was within the expected normative range across all assessed electrode pairs, indicating preserved selectivity of bilateral cortical coordination. This reflects intact functional connectivity organisation, without the over-synchronisation pattern associated with MDD in the resting-state neurophysiology literature.
@@ -624,6 +670,7 @@ Among the assessed biomarkers, frontal theta and interhemispheric coherence carr
 
 EEG findings reflect the subject's neurophysiological state at the time of recording. These observations require integration with clinical history, current symptom presentation, and professional evaluation, and do not constitute a standalone diagnosis.
 
+<<<<<<< HEAD
 Confidence & Reliability Assessment
 Prediction confidence was 97.6% (high confidence), and the classification remained stable across recording segments, which strongly supports the reliability of this output.
 
@@ -631,6 +678,8 @@ Biomarker concept detectability in this recording was moderate overall. Interhem
 
 Findings are suitable as a primary decision-support signal, subject to clinical correlation.
 
+=======
+>>>>>>> master
 Safety Disclaimer
 {SAFETY_DISCLAIMER}"""
 
@@ -759,7 +808,11 @@ Safety Disclaimer
 Subject ID: EXAMPLE_003. Recording duration: 305 seconds. Data source: example_hc_mixed.edf.
 
 Clinical Summary
+<<<<<<< HEAD
 EEG analysis yielded a classification of Healthy with 97.7% confidence (high confidence). The classification remained stable across the full recording duration. At this confidence level, findings are suitable as a primary decision-support signal, subject to clinical correlation.
+=======
+EEG analysis yielded a classification of Healthy. The classification remained stable across the full recording duration.
+>>>>>>> master
 
 Biomarker Interpretation
 Theta/beta ratio (TBR; 48 Hz relative to 1330 Hz; electrodes Fz, F3, F4): In a neurologically healthy adult, the theta-to-beta ratio at rest is typically low, reflecting efficient frontal arousal regulation and active cognitive engagement. In this subject, the theta/beta ratio was elevated relative to normative expectation, indicating a relative predominance of slower-frequency activity over faster-frequency activity in the prefrontal region and reduced frontal arousal efficiency. It is important to note that TBR is a general cortical arousal index derived primarily from the ADHD literature; its specificity as an MDD biomarker has not been established, and this finding should not be interpreted as MDD-specific without contextualisation against clinical presentation.
@@ -781,6 +834,7 @@ The elevated interhemispheric alpha coherence is the more neurophysiologically s
 
 EEG findings reflect the subject's neurophysiological state at the time of recording. These observations require integration with clinical history, current symptom presentation, and professional evaluation, and do not constitute a standalone diagnosis.
 
+<<<<<<< HEAD
 Confidence & Reliability Assessment
 Prediction confidence was 97.7% (high confidence), and the classification remained stable across recording segments, which strongly supports the reliability of this output.
 
@@ -788,6 +842,8 @@ Biomarker detectability was well-established across all assessed concepts in thi
 
 Findings are suitable as a primary decision-support signal, subject to clinical correlation.
 
+=======
+>>>>>>> master
 Safety Disclaimer
 {SAFETY_DISCLAIMER}"""
 
@@ -804,8 +860,11 @@ Per-section instructions:
 {CLINICAL_SUMMARY_INSTRUCTION}
 {BIOMARKER_INSTRUCTION}
 {INTERPRETATION_INSTRUCTION}
+<<<<<<< HEAD
 {RELIABILITY_INSTRUCTION}
 
+=======
+>>>>>>> master
 Safety Disclaimer: reproduce exactly: "{SAFETY_DISCLAIMER}"
 
 General constraints:
@@ -922,6 +981,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     prediction = analysis_result.get("prediction", {})
     label = prediction.get("label", "Unknown")
     raw_label = prediction.get("raw_label", "HC")
+<<<<<<< HEAD
     confidence_pct = float(prediction.get("confidence", 0.0))
     probabilities = explanation.get("segment_mdd_probs", [])
     mdd_prob = (
@@ -935,6 +995,11 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     consistency = _temporal_consistency(probabilities)
     mean_prob, std_prob, min_prob, max_prob = _segment_summary(probabilities)
     band = _confidence_band(confidence_pct)
+=======
+    probabilities = explanation.get("segment_mdd_probs", [])
+    consistency = _temporal_consistency(probabilities)
+    _, std_prob, _, _ = _segment_summary(probabilities)
+>>>>>>> master
 
     # Parse concepts
     concepts = []
@@ -997,6 +1062,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     if "stable" in consistency:
         stability_sentence = "The classification remained stable across the full recording duration."
     else:
+<<<<<<< HEAD
         range_text = (
             f"from {min_prob:.2f} to {max_prob:.2f}"
             if min_prob is not None and max_prob is not None
@@ -1031,6 +1097,15 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
         f"confidence ({band.lower()}). "
         f"{stability_sentence} "
         f"{reliance_sentence}"
+=======
+        stability_sentence = (
+            "The classification showed variability across the full recording duration."
+        )
+
+    model_summary = (
+        f"EEG analysis yielded a classification of {label}. "
+        f"{stability_sentence}"
+>>>>>>> master
     )
 
     # --- Biomarker Interpretation ---
@@ -1349,6 +1424,7 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
         "a standalone diagnosis."
     )
 
+<<<<<<< HEAD
     # --- Confidence & Reliability Assessment ---
     mean_cav = (
         sum(c["cav_accuracy"] for c in concepts) / len(concepts) if concepts else 0.0
@@ -1429,13 +1505,20 @@ def _build_local_report(analysis_result: dict, technical_note: str | None = None
     )
     if technical_note:
         reliability += f"\n\nTechnical note: {technical_note}"
+=======
+    if technical_note:
+        model_summary += f"\n\nTechnical note: {technical_note}"
+>>>>>>> master
 
     return {
         "patient_recording_information": patient_info,
         "model_prediction_summary": model_summary,
         "concept_based_explanation": concept_summary,
         "clinical_interpretation": clinical_interpretation,
+<<<<<<< HEAD
         "confidence_reliability_assessment": reliability,
+=======
+>>>>>>> master
         "safety_disclaimer": SAFETY_DISCLAIMER,
         "raw_report_text": "",
         "source": "local",

@@ -5,6 +5,7 @@ from fastapi import HTTPException
 jobs: Dict[str, Any] = {}
 
 
+<<<<<<< HEAD
 def create_job(subject_id: str, edf_path: str) -> Dict[str, Any]:
     return {
         "status": "running",
@@ -13,6 +14,18 @@ def create_job(subject_id: str, edf_path: str) -> Dict[str, Any]:
         "result": None,
         "report": None,
         "error": None,
+=======
+def create_job(subject_id: str, edf_path: str, user_id: int | None = None) -> Dict[str, Any]:
+    return {
+        "status": "running",
+        "progress": 8,
+        "logs": [{"progress": 8, "message": "Upload saved. Analysis job queued."}],
+        "result": None,
+        "report": None,
+        "error": None,
+        "cancel_requested": False,
+        "user_id": user_id,
+>>>>>>> master
         "subject_id": subject_id,
         "edf_path": edf_path,
     }
@@ -35,3 +48,22 @@ def require_job(job_id: str) -> Dict[str, Any]:
     if job is None:
         raise HTTPException(404, "Job not found")
     return job
+<<<<<<< HEAD
+=======
+
+
+def request_cancel(job_id: str) -> Dict[str, Any]:
+    job = require_job(job_id)
+    if job["status"] in {"done", "error", "canceled"}:
+        return job
+    job["cancel_requested"] = True
+    job["status"] = "canceled"
+    job["progress"] = min(job.get("progress", 0), 99)
+    job["logs"].append(
+        {
+            "progress": job["progress"],
+            "message": "Analysis canceled by user.",
+        }
+    )
+    return job
+>>>>>>> master

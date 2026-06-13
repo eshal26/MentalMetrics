@@ -58,8 +58,12 @@ def build_pdf_response(result: dict, report: dict) -> FileResponse:
     prediction = result["prediction"]
     story.append(
         Paragraph(
+<<<<<<< HEAD
             f"Model Prediction: <b>{prediction['label']}</b> "
             f"({prediction['confidence']}% confidence)",
+=======
+            f"Model Prediction: <b>{prediction['label']}</b>",
+>>>>>>> master
             meta_style,
         )
     )

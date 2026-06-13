@@ -24,6 +24,13 @@ API_PREFIX = "/api"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", os.path.join(BACKEND_DIR, "analysis_history.db"))
+<<<<<<< HEAD
+=======
+AUTH_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "change-this-development-secret")
+AUTH_TOKEN_EXPIRE_MINUTES = int(os.getenv("AUTH_TOKEN_EXPIRE_MINUTES", "480"))
+AUTH_BOOTSTRAP_EMAIL = os.getenv("AUTH_BOOTSTRAP_EMAIL", "admin@mentalmetrics.local")
+AUTH_BOOTSTRAP_PASSWORD = os.getenv("AUTH_BOOTSTRAP_PASSWORD", "changeme")
+>>>>>>> master
 EXPLAIN_MODEL_PATH = os.getenv(
     "EXPLAIN_MODEL_PATH",
     os.path.join(BACKEND_DIR, "xceptiontime_mdd_v2_statedict.pt"),

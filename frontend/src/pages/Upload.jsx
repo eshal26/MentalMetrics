@@ -12,6 +12,7 @@ export default function Upload({
   onAnalyze,
   runState,
   onRetry,
+  onCancel,
 }) {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
@@ -42,6 +43,14 @@ export default function Upload({
     onAnalyze(file, subjectName.trim() || file.name.replace(/\.edf$/i, ""));
   }, [file, onAnalyze, subjectName]);
 
+  const handleRetry = useCallback(() => {
+    if (file) {
+      handleSubmit();
+      return;
+    }
+    onRetry();
+  }, [file, handleSubmit, onRetry]);
+
   return (
     <div className="page-stack">
       {runState.error && (
@@ -50,7 +59,7 @@ export default function Upload({
             <strong>Analysis failed</strong>
             <div>{runState.error}</div>
           </div>
-          <button type="button" className="ghost-button" onClick={onRetry}>
+          <button type="button" className="ghost-button" onClick={handleRetry}>
             Try again
           </button>
         </div>
@@ -115,6 +124,11 @@ export default function Upload({
           >
             {runState.loading ? "Running analysis..." : "Start analysis"}
           </button>
+          {runState.loading && (
+            <button type="button" className="ghost-button" onClick={onCancel}>
+              Cancel analysis
+            </button>
+          )}
         </div>
       </div>
 
@@ -125,6 +139,9 @@ export default function Upload({
               <div className="progress-fill" style={{ width: `${runState.progress}%` }} />
             </div>
             <div className="muted-text">{runState.progress}% complete</div>
+            {runState.currentMessage && (
+              <div className="muted-text">{runState.currentMessage}</div>
+            )}
           </div>
           <ProgressStepper stages={runState.stages} />
         </div>

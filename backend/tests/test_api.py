@@ -12,17 +12,56 @@ if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
 from main import app  # noqa: E402
+<<<<<<< HEAD
+=======
+from auth import create_access_token  # noqa: E402
+from config import AUTH_BOOTSTRAP_EMAIL  # noqa: E402
+from db import get_user_by_email, init_db  # noqa: E402
+>>>>>>> master
 from job_store import jobs  # noqa: E402
 
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
         jobs.clear()
+<<<<<<< HEAD
+=======
+        init_db()
+        self.user = get_user_by_email(AUTH_BOOTSTRAP_EMAIL)
+        self.auth_headers = {
+            "Authorization": f"Bearer {create_access_token(self.user)}",
+        }
+>>>>>>> master
         self.client = TestClient(app)
 
     def tearDown(self):
         jobs.clear()
 
+<<<<<<< HEAD
+=======
+    def test_root_endpoint(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": "ok",
+                "message": "MentalMetrics API is running. Use /api/health and /api/... endpoints.",
+            },
+        )
+
+    def test_api_root_endpoint(self):
+        response = self.client.get("/api")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": "ok",
+                "message": "MentalMetrics API is available. Use /api/health, /api/analyze, /api/stream/{job_id}, /api/results/{job_id}, /api/history/{subject_id}, or /api/pdf/{job_id}.",
+            },
+        )
+
+>>>>>>> master
     def test_health_endpoint(self):
         response = self.client.get("/api/health")
         self.assertEqual(response.status_code, 200)
@@ -31,6 +70,10 @@ class ApiTests(unittest.TestCase):
     def test_analyze_rejects_non_edf_upload(self):
         response = self.client.post(
             "/api/analyze",
+<<<<<<< HEAD
+=======
+            headers=self.auth_headers,
+>>>>>>> master
             files={"file": ("sample.txt", b"demo", "text/plain")},
             data={"subject_id": "EEG-01"},
         )
@@ -42,6 +85,10 @@ class ApiTests(unittest.TestCase):
         with patch("routes.start_job_thread") as start_job_thread:
             response = self.client.post(
                 "/api/analyze",
+<<<<<<< HEAD
+=======
+                headers=self.auth_headers,
+>>>>>>> master
                 files={"file": ("sample.edf", b"edf-bytes", "application/octet-stream")},
                 data={"subject_id": "EEG-01"},
             )
@@ -52,6 +99,10 @@ class ApiTests(unittest.TestCase):
 
         job = jobs[payload["job_id"]]
         self.assertEqual(job["subject_id"], "EEG-01")
+<<<<<<< HEAD
+=======
+        self.assertEqual(job["user_id"], self.user["id"])
+>>>>>>> master
         self.assertEqual(job["status"], "running")
         self.assertTrue(os.path.exists(job["edf_path"]))
 
@@ -69,10 +120,18 @@ class ApiTests(unittest.TestCase):
             "report": {"summary": "ok"},
             "error": None,
             "subject_id": "EEG-01",
+<<<<<<< HEAD
             "edf_path": "",
         }
 
         response = self.client.get("/api/results/done-job")
+=======
+            "user_id": self.user["id"],
+            "edf_path": "",
+        }
+
+        response = self.client.get("/api/results/done-job", headers=self.auth_headers)
+>>>>>>> master
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -89,6 +148,10 @@ class ApiTests(unittest.TestCase):
             "report": {"summary": "ok"},
             "error": None,
             "subject_id": "EEG-01",
+<<<<<<< HEAD
+=======
+            "user_id": self.user["id"],
+>>>>>>> master
             "edf_path": "",
         }
 
@@ -105,7 +168,11 @@ class ApiTests(unittest.TestCase):
                     media_type="application/pdf",
                     filename="report.pdf",
                 )
+<<<<<<< HEAD
                 response = self.client.get("/api/pdf/done-job")
+=======
+                response = self.client.get("/api/pdf/done-job", headers=self.auth_headers)
+>>>>>>> master
         finally:
             os.remove(temp_pdf.name)
 

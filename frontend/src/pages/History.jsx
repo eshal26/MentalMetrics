@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import PredictionBadge from "../components/PredictionBadge";
+import { getPredictionPhrase } from "../components/PredictionBadge";
 
 function sortSessions(sessions, sortKey, direction) {
   const factor = direction === "asc" ? 1 : -1;
@@ -85,8 +85,7 @@ export default function History({
                 <tr>
                   <SortableHeader label="Subject" onClick={() => toggleSort("subject")} />
                   <SortableHeader label="Date / Time" onClick={() => toggleSort("createdAt")} />
-                  <SortableHeader label="Prediction" onClick={() => toggleSort("prediction")} />
-                  <SortableHeader label="Confidence" onClick={() => toggleSort("confidence")} />
+                  <SortableHeader label="Result" onClick={() => toggleSort("confidence")} />
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -95,10 +94,7 @@ export default function History({
                   <tr key={session.id} onClick={() => onViewSession(session.id)} className="clickable-row">
                     <td>{session.subject}</td>
                     <td>{new Date(session.createdAt).toLocaleString()}</td>
-                    <td>
-                      <PredictionBadge label={session.prediction} confidence={session.confidence} />
-                    </td>
-                    <td>{session.confidence.toFixed(1)}%</td>
+                    <td>{getPredictionPhrase(session.prediction, session.confidence)}</td>
                     <td className="action-cell" onClick={(event) => event.stopPropagation()}>
                       <button type="button" className="secondary-button" onClick={() => onViewSession(session.id)}>
                         View

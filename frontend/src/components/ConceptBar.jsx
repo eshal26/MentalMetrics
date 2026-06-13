@@ -72,10 +72,6 @@ export default function ConceptBar({ concept, onOpenGlossary }) {
           <span className="concept-stat-label">Physiologic shift</span>
           <span className="concept-stat-value">{directionLabel}</span>
         </div>
-        <div className="concept-stat-card">
-          <span className="concept-stat-label">Reliability</span>
-          <span className="concept-stat-value">{((concept.cavAccuracy || 0) * 100).toFixed(1)}%</span>
-        </div>
       </div>
 
       <div className="concept-bar-meta">
